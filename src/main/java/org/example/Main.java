@@ -65,15 +65,38 @@ public class Main {
 
     }
 
-    private static void updateDetails(XSSFWorkbook workbook, XSSFSheet worksheet, XSSFSheet resultSheet, int sourceRowNum, int rowId) throws IOException {
+    private static void copyRow(XSSFWorkbook workbook, XSSFSheet worksheet, XSSFSheet resultSheet, int sourceRowNum) throws IOException {
         // Get the source / new row
+        XSSFRow sourceRow = worksheet.getRow(sourceRowNum);
+//        if (newRow != null) {
+//            worksheet.shiftRows(destinationRowNum, worksheet.getLastRowNum(), 1);
+//        } else {
+//            newRow = worksheet.createRow(destinationRowNum);
+//        }
         for (Map.Entry<Integer, Pair<Integer, Integer>> entry : config.entrySet()) {
+        //for (int i = 0; i < sourceRow.getLastCellNum(); i++) {
+            // Grab a copy of the old/new cell
             int i = entry.getKey();
             int r = entry.getValue().getKey();
             int c = entry.getValue().getValue();
-                XSSFCell oldCell = worksheet.getRow(sourceRowNum).getCell(i);
+                XSSFCell oldCell = sourceRow.getCell(i);
+                //XSSFCell newCell = newRow.createCell(i);
+                //System.out.println(oldCell);
                 XSSFCell newCell;
-                newCell = resultSheet.getRow(r+rowId*26).getCell(c);
+                newCell = resultSheet.getRow(r).getCell(c);
+
+                // If there is a cell comment, copy
+                if (oldCell.getCellComment() != null) {
+                    newCell.setCellComment(oldCell.getCellComment());
+                }
+
+                // If there is a cell hyperlink, copy
+                if (oldCell.getHyperlink() != null) {
+                    newCell.setHyperlink(oldCell.getHyperlink());
+                }
+
+                // Set the cell data type
+                // newCell.setCellType(oldCell.getCellType());
 
                 // Set the cell data value
                 switch (oldCell.getCellType()) {
@@ -96,42 +119,28 @@ public class Main {
                         newCell.setCellValue(oldCell.getRichStringCellValue());
                         break;
                 }
+
+            final FileInputStream stream =
+                    new FileInputStream( "/Users/harsha/IdeaProjects/test/src/main/resources/9th/" + String.format("%03d", sourceRowNum) + ".jpg" );
+            final CreationHelper helper = workbook.getCreationHelper();
+            final Drawing drawing = resultSheet.createDrawingPatriarch();
+
+            final ClientAnchor anchor = helper.createClientAnchor();
+            anchor.setAnchorType( ClientAnchor.AnchorType.MOVE_AND_RESIZE );
+
+
+            final int pictureIndex =
+                    workbook.addPicture(IOUtils.toByteArray(stream), Workbook.PICTURE_TYPE_JPEG);
+
+
+            anchor.setCol1( 11 );
+            anchor.setRow1( 5 ); // same row is okay
+            anchor.setRow2( 11 );
+            anchor.setCol2( 12 );
+            final Picture pict = drawing.createPicture( anchor, pictureIndex );
+            pict.resize(0.8);
             }
-        final FileInputStream stream =
-                new FileInputStream( "/Users/harsha/IdeaProjects/test/src/main/resources/9th/" + String.format("%03d", sourceRowNum) + ".jpg" );
-        final CreationHelper helper = workbook.getCreationHelper();
-        final Drawing drawing = resultSheet.createDrawingPatriarch();
 
-        final ClientAnchor anchor = helper.createClientAnchor();
-        anchor.setAnchorType( ClientAnchor.AnchorType.MOVE_AND_RESIZE );
-
-
-        final int pictureIndex =
-                workbook.addPicture(IOUtils.toByteArray(stream), Workbook.PICTURE_TYPE_JPEG);
-
-        final FileInputStream stream2 =
-                new FileInputStream( "/Users/harsha/IdeaProjects/test/src/main/resources/logo.png" );
-        final CreationHelper helper2 = workbook.getCreationHelper();
-        final Drawing drawing2 = resultSheet.createDrawingPatriarch();
-
-        final ClientAnchor anchor2 = helper.createClientAnchor();
-        anchor.setAnchorType( ClientAnchor.AnchorType.MOVE_AND_RESIZE );
-
-
-        final int pictureIndex2 =
-                workbook.addPicture(IOUtils.toByteArray(stream), Workbook.PICTURE_TYPE_PNG);
-
-
-        anchor2.setRow1(26*rowId);
-        anchor2.setCol1(0);
-        anchor2.setRow2(26*rowId+1);
-        anchor2.setCol2(1);
-        anchor.setCol1( 11 );
-        anchor.setRow1( 5 + rowId*26);
-        anchor.setRow2( 11 + rowId*26);
-        anchor.setCol2( 12 );
-        final Picture pict = drawing.createPicture( anchor, pictureIndex );
-        pict.resize(0.8);
     }
     public static void main(String[] args) {
         getConfig();
@@ -143,26 +152,19 @@ public class Main {
 
             //Get first/desired sheet from the workbook
             XSSFSheet sheet = workbook.getSheetAt(0);
-            XSSFSheet newSheet = workbook.getSheetAt(1);
+            //XSSFSheet newSheet = workbook.getSheetAt(1);
 
             //Iterate through each rows one by one
             Iterator<Row> rowIterator = sheet.iterator();
             int i = 1;
-            int rowid = 26;
-            XSSFSheet resultSheet = workbook.createSheet();
             while (rowIterator.hasNext())
             {
                 if(i > 10)
                     break;
                 Row row = rowIterator.next();
-                //XSSFSheet templateSheet = workbook.cloneSheet(1);
-                for(int j = 0; j < 23; j++) {
-                    CopyRow.copyRow(workbook, newSheet, j, rowid);
-                    rowid++;
-                }
-                updateDetails(workbook, sheet, newSheet, i, i);
+                XSSFSheet templateSheet = workbook.cloneSheet(1);
+                copyRow(workbook, sheet, templateSheet, i);
                 i++;
-                rowid += 3;
             }
             FileOutputStream out = new FileOutputStream(new File("updated_list.xlsx"));
             workbook.write(out);
